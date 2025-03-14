@@ -7,9 +7,8 @@ import com.advpro.profiling.tutorial.repository.StudentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author muhammad.khadafi
@@ -17,17 +16,27 @@ import java.util.Optional;
 @Service
 public class StudentService {
 
-    @Autowired
-    private StudentRepository studentRepository;
+    private final StudentRepository studentRepository;
+    private final StudentCourseRepository studentCourseRepository;
 
     @Autowired
-    private StudentCourseRepository studentCourseRepository;
+    public StudentService(StudentRepository studentRepository, StudentCourseRepository studentCourseRepository) {
+        this.studentRepository = studentRepository;
+        this.studentCourseRepository = studentCourseRepository;
+    }
 
+    // Optimasi: Menggunakan Map untuk mengelompokkan StudentCourse berdasarkan studentId
     public List<StudentCourse> getAllStudentsWithCourses() {
         List<Student> students = studentRepository.findAll();
+        List<StudentCourse> allStudentCourses = studentCourseRepository.findAll();
+
+        // Menggunakan Map untuk mempercepat pencarian
+        Map<Long, List<StudentCourse>> studentCourseMap = allStudentCourses.stream()
+                .collect(Collectors.groupingBy(sc -> sc.getStudent().getId()));
+
         List<StudentCourse> studentCourses = new ArrayList<>();
         for (Student student : students) {
-            List<StudentCourse> studentCoursesByStudent = studentCourseRepository.findByStudentId(student.getId());
+            List<StudentCourse> studentCoursesByStudent = studentCourseMap.getOrDefault(student.getId(), new ArrayList<>());
             for (StudentCourse studentCourseByStudent : studentCoursesByStudent) {
                 StudentCourse studentCourse = new StudentCourse();
                 studentCourse.setStudent(student);
@@ -38,26 +47,16 @@ public class StudentService {
         return studentCourses;
     }
 
+    // Optimasi: Menggunakan stream().max() agar lebih ringkas dan efisien
     public Optional<Student> findStudentWithHighestGpa() {
-        List<Student> students = studentRepository.findAll();
-        Student highestGpaStudent = null;
-        double highestGpa = 0.0;
-        for (Student student : students) {
-            if (student.getGpa() > highestGpa) {
-                highestGpa = student.getGpa();
-                highestGpaStudent = student;
-            }
-        }
-        return Optional.ofNullable(highestGpaStudent);
+        return studentRepository.findAll().stream()
+                .max(Comparator.comparingDouble(Student::getGpa));
     }
 
+    // Optimasi: Menggunakan String.join() untuk performa lebih baik daripada concatenation dalam loop
     public String joinStudentNames() {
-        List<Student> students = studentRepository.findAll();
-        String result = "";
-        for (Student student : students) {
-            result += student.getName() + ", ";
-        }
-        return result.substring(0, result.length() - 2);
+        return studentRepository.findAll().stream()
+                .map(Student::getName)
+                .collect(Collectors.joining(", "));
     }
 }
-
